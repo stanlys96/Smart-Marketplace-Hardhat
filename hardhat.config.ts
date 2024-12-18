@@ -5,16 +5,26 @@ import "@nomicfoundation/hardhat-verify";
 const PRIVATE_KEY = vars.get("PRIVATE_KEY");
 
 const config: HardhatUserConfig = {
-  solidity: "0.8.28",
+  solidity: {
+    version: "0.8.20",
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 200,
+      },
+      viaIR: true,
+    },
+  },
+
   networks: {
-    'lisk-sepolia-testnet': {
-      url: 'https://rpc.sepolia-api.lisk.com',
-      accounts: [PRIVATE_KEY]
+    "lisk-sepolia-testnet": {
+      url: "https://rpc.sepolia-api.lisk.com",
+      accounts: [PRIVATE_KEY],
     },
   },
   etherscan: {
     apiKey: {
-      'lisk-sepolia-testnet': 'empty'
+      "lisk-sepolia-testnet": "empty",
     },
     customChains: [
       {
@@ -22,14 +32,14 @@ const config: HardhatUserConfig = {
         chainId: 4202,
         urls: {
           apiURL: "https://sepolia-blockscout.lisk.com/api",
-          browserURL: "https://sepolia-blockscout.lisk.com"
-        }
-      }
-    ]
+          browserURL: "https://sepolia-blockscout.lisk.com",
+        },
+      },
+    ],
   },
   sourcify: {
-    enabled: false
-  }
+    enabled: false,
+  },
 };
 
 export default config;

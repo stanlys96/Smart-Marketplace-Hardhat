@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -185,14 +185,13 @@ contract MetaverseMarketplace is ReentrancyGuard {
   ) public {
     for (uint i = 0; i < s_allListings.length; i++) {
       if (compareStrings(s_allListings[i].productCode, productCode)) {
-        Comment memory newComment = Comment(
+        s_allListings[i].comments.push(Comment(
           msg.sender,
           rating,
           comment,
           block.timestamp,
           dateString
-        );
-        s_allListings[i].comments.push(newComment);
+        ));
         emit CommentAdded(msg.sender, comment, productCode, seller);
         break;
       }
@@ -210,12 +209,22 @@ contract MetaverseMarketplace is ReentrancyGuard {
   ) public {
     for (uint i = 0; i < s_allListings.length; i++) {
       if (compareStrings(s_allListings[i].productCode, productCode)) {
-        s_allListings[i].price = price;
-        s_allListings[i].title = title;
-        s_allListings[i].description = description;
-        s_allListings[i].productInfo = productInfo;
-        s_allListings[i].productUrl = productUrl;
-        s_allListings[i].imageUrl = imageUrl;
+        Listing memory listingTemp = Listing(
+          price,
+          s_allListings[i].seller,
+          s_allListings[i].published,
+          s_allListings[i].productType,
+          title,
+          description,
+          imageUrl,
+          s_allListings[i].currency,
+          productUrl,
+          productInfo,
+          s_allListings[i].productCode,
+          s_allListings[i].nftTokenId,
+          s_allListings[i].comments
+        );
+        s_allListings[i] = listingTemp;
         emit ListingUpdated(msg.sender, productCode, title, price);
         break;
       }

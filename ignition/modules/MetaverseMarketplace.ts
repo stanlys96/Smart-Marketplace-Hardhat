@@ -6,7 +6,7 @@ const MetaverseMarketplaceModule = theBuildModule(
   "MetaverseMarketplace",
   (m: any) => {
     const metaverseMarketplace = m.contract("MetaverseMarketplace", [
-      "0x1A2bEcad24E4561499aDa8bfBB00623996e5Eff0",
+      "0xc3d5e089ecb33357E5A2e18E99B83A4651A190d6",
     ]);
     return { metaverseMarketplace };
   }
