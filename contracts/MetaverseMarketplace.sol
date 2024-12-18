@@ -105,6 +105,10 @@ contract MetaverseMarketplace is ReentrancyGuard {
     metaverseToken = IERC20(_metaverseTokenAddress);
   }
 
+  function compareStrings(string memory a, string memory b) internal pure returns (bool) {
+    return keccak256(abi.encodePacked(a)) == keccak256(abi.encodePacked(b));
+  }
+
   function listItem(
     uint256 price,
     string memory productType,
@@ -147,10 +151,6 @@ contract MetaverseMarketplace is ReentrancyGuard {
       productCode,
       title
     );
-  }
-
-  function compareStrings(string memory a, string memory b) internal pure returns (bool) {
-    return keccak256(abi.encodePacked(a)) == keccak256(abi.encodePacked(b));
   }
 
   function changeListingVisibility(string memory productCode, bool publish) public {
@@ -308,5 +308,14 @@ contract MetaverseMarketplace is ReentrancyGuard {
 
   function getAllUserListings() public view returns (Listing[] memory) {
     return s_allListings;
+  }
+
+  function productCodeExists(string memory productCode) public view returns (bool) {
+    for (uint256 i = 0; i < s_allListings.length; i++) {
+      if (compareStrings(s_allListings[i].productCode, productCode)) {
+        return true;
+      }
+    }
+    return false;
   }
 }
