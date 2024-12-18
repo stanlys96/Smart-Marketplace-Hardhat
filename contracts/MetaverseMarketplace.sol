@@ -8,8 +8,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 error MetaverseMarketplace__PriceMustBeAboveZero();
 error MetaverseMarketplace__NotApprovedForMarketplace();
 error MetaverseMarketplace__PriceNotMet(
-    address nftAddress,
-    uint256 tokenId,
+    string productCode,
+    address seller,
     uint256 price
 );
 error MetaverseMarketplace__NoProceeds();
@@ -48,18 +48,23 @@ contract MetaverseMarketplace is ReentrancyGuard {
     uint256 metaverse;
   }
 
-  mapping(address => Listing) private s_listings;
-  mapping(address => Proceed) private s_proceeds;
+  mapping(address => mapping(string => Listing)) private s_listings;
+  mapping(address => mapping(string => uint256)) private s_proceeds;
   mapping(address => string) private usernames;
   mapping(address => uint256) public addressToLastGetMetaverseToken;
   IERC20 public metaverseToken;
 
   event ItemListed(
     address indexed seller,
-    address indexed nftAddress,
-    uint256 indexed tokenId,
-    uint256 price,
-    string action
+    uint256 indexed price,
+    string indexed productCode,
+    string title
+  );
+
+  event ItemPublished(
+    address indexed seller,
+    string indexed productCode,
+    bool indexed publish
   );
 
   event ItemCanceled(
@@ -71,40 +76,9 @@ contract MetaverseMarketplace is ReentrancyGuard {
 
   event ItemBought(
     address indexed buyer,
-    address indexed nftAddress,
-    uint256 indexed tokenId,
-    uint256 price
+    string indexed productCode,
+    uint256 indexed price
   );
-
-  // modifier isListed(
-  //   address nftAddress,
-  //   uint256 tokenId,
-  //   bool shouldBeListed
-  // ) {
-  //     Listing memory listedItem = s_listings[nftAddress][tokenId];
-  //     if (listedItem.price > 0 && shouldBeListed == false) {
-  //       revert MetaverseMarketplace__AlreadyListed(nftAddress, tokenId);
-  //     } else if (listedItem.price <= 0 && shouldBeListed == true) {
-  //       revert MetaverseMarketplace__NotListed(nftAddress, tokenId);
-  //     }
-  //     _;
-  // }
-
-  // modifier isOwner(
-  //   address nftAddress,
-  //   uint256 tokenId,
-  //   address spender,
-  //   bool shouldBeOwner
-  // ) {
-  //   IERC721 nft = IERC721(nftAddress);
-  //   address owner = nft.ownerOf(tokenId);
-  //   if (owner != spender && shouldBeOwner == true) {
-  //     revert MetaverseMarketplace__NotOwner();
-  //   } else if (owner == spender && shouldBeOwner == false) {
-  //     revert MetaverseMarketplace__TheOwner();
-  //   }
-  //   _;
-  // }
 
   constructor(address _metaverseTokenAddress) {
     metaverseToken = IERC20(_metaverseTokenAddress);
@@ -112,13 +86,14 @@ contract MetaverseMarketplace is ReentrancyGuard {
 
   function listItem(
     uint256 price,
-    string productType,
-    string title,
-    string description,
-    string imageUrl,
-    string currency,
-    string productUrl,
-    string productInfo,
+    string memory productType,
+    string memory title,
+    string memory description,
+    string memory imageUrl,
+    string memory currency,
+    string memory productUrl,
+    string memory productInfo,
+    string memory productCode,
     uint256 nftTokenId
   )
     external
@@ -126,91 +101,71 @@ contract MetaverseMarketplace is ReentrancyGuard {
     if (price <= 0) {
       revert MetaverseMarketplace__PriceMustBeAboveZero();
     }
-    s_listings[msg.sender] = Listing(
+    Comment[] memory comments;
+    s_listings[msg.sender][productCode] = Listing(
       price,
-      msg.sender
+      msg.sender,
+      false,
+      productType,
+      title,
+      description,
+      imageUrl,
+      currency,
+      productUrl,
+      productInfo,
+      nftTokenId,
+      comments
     );
     emit ItemListed(
       msg.sender,
-      nftAddressTemp,
-      tokenIdTemp,
-      priceTemp,
-      "list_item"
+      price,
+      productCode,
+      title
     );
   }
 
-  function cancelListing(address nftAddress, uint256 tokenId)
-    external
-  {
-    uint256 price = s_listings[nftAddress][tokenId].price;
-    delete s_listings[nftAddress][tokenId];
-    emit ItemCanceled(msg.sender, nftAddress, tokenId, price);
+  function changeListingVisibility(string memory productCode, bool publish) public {
+    s_listings[msg.sender][productCode].published = publish;
+    emit ItemPublished(msg.sender, productCode, publish);
   }
 
-  function buyItem(address nftAddress, uint256 tokenId)
+  function buyItem(string memory productCode, address seller)
     external
     payable
     nonReentrant
   {
-    Listing memory listedItem = s_listings[nftAddress][tokenId];
+    Listing memory listedItem = s_listings[seller][productCode];
     if (msg.value < listedItem.price) {
       revert MetaverseMarketplace__PriceNotMet(
-        nftAddress,
-        tokenId,
+        productCode,
+        seller,
         listedItem.price
       );
     }
-    s_proceeds[listedItem.seller] += msg.value;
-    delete s_listings[nftAddress][tokenId];
-    IERC721(nftAddress).safeTransferFrom(
-      listedItem.seller,
-      msg.sender,
-      tokenId
-    );
-    emit ItemBought(msg.sender, nftAddress, tokenId, listedItem.price);
+    s_proceeds[listedItem.seller][listedItem.currency] += msg.value;
+    emit ItemBought(msg.sender, productCode, listedItem.price);
   }
 
-  function updateListing(
-    address nftAddress,
-    uint256 tokenId,
-    uint256 newPrice
-  )
-    external
-    nonReentrant
-  {
-    if (newPrice <= 0) {
-      revert MetaverseMarketplace__PriceMustBeAboveZero();
-    }
-    s_listings[nftAddress][tokenId].price = newPrice;
-    emit ItemListed(
-      msg.sender,
-      nftAddress,
-      tokenId,
-      newPrice,
-      "update_price"
-    );
-  }
-
-  function withdrawProceeds() external {
-    uint256 proceeds = s_proceeds[msg.sender];
+  function withdrawProceeds(string memory currency) external {
+    uint256 proceeds = s_proceeds[msg.sender][currency];
     if (proceeds <= 0) {
       revert MetaverseMarketplace__NoProceeds();
     }
-    s_proceeds[msg.sender] = 0;
+    s_proceeds[msg.sender][currency] = 0;
     (bool success, ) = payable(msg.sender).call{value: proceeds}("");
     require(success, "Transfer failed!");
   }
 
-  function getListing(address nftAddress, uint256 tokenId)
+  function getListing(string memory productCode)
     external
     view
     returns (Listing memory)
   {
-    return s_listings[nftAddress][tokenId];
+    return s_listings[msg.sender][productCode];
   }
 
-  function getProceeds(address seller) external view returns (uint256) {
-    return s_proceeds[seller];
+  function getProceeds(address seller, string memory currency) external view returns (uint256) {
+    return s_proceeds[seller][currency];
   }
 
   function get1000MetaverseToken() public {
