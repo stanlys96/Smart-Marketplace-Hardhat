@@ -1,5 +1,6 @@
 {
   "MetaverseToken#Metaverse": "0xc3d5e089ecb33357E5A2e18E99B83A4651A190d6",
   "MetaverseMarketplace#MetaverseMarketplace": "0x6d301165cD98F2cd86F2F10B06F091316afc1da0",
-  "MetaverseNFT#MetaverseNFT": "0x8562466A1FCC3b022A8033f86e59D998188BDE05"
+  "MetaverseNFT#MetaverseNFT": "0x8562466A1FCC3b022A8033f86e59D998188BDE05",
+  "MetaverseMarketplaceModule#MetaverseMarketplace": "0x969A3FEC5585C7Bfc83Bd28913F6fa148B4BBAB7"
 }

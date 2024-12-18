@@ -15,6 +15,12 @@ error MetaverseMarketplace__NoProceeds();
 error MetaverseMarketplace__AddressLessThan1DayForMetaverseToken(address senderAddress);
 
 contract MetaverseMarketplace is ReentrancyGuard {
+  struct Buyer {
+    address buyer;
+    uint256 quantity;
+    uint256 totalPrice;
+  }
+
   struct Comment {
     address commenter;
     uint256 rating;
@@ -37,6 +43,7 @@ contract MetaverseMarketplace is ReentrancyGuard {
     string productCode;
     uint256 nftTokenId;
     Comment[] comments;
+    Buyer[] buyers;
   }
 
   mapping(address => mapping(string => uint256)) private s_proceeds;
@@ -116,6 +123,7 @@ contract MetaverseMarketplace is ReentrancyGuard {
       revert MetaverseMarketplace__PriceMustBeAboveZero();
     }
     Comment[] memory comments;
+    Buyer[] memory buyers;
     Listing memory newListing = Listing(
       price,
       msg.sender,
@@ -129,7 +137,8 @@ contract MetaverseMarketplace is ReentrancyGuard {
       productInfo,
       productCode,
       nftTokenId,
-      comments
+      comments,
+      buyers
     );
     s_allListings.push(newListing);
     emit ItemListed(
@@ -154,7 +163,7 @@ contract MetaverseMarketplace is ReentrancyGuard {
     }
   }
 
-  function buyItem(string memory productCode, address seller)
+  function buyItem(string memory productCode, address seller, uint256 quantity)
     external
     payable
     nonReentrant
@@ -169,7 +178,13 @@ contract MetaverseMarketplace is ReentrancyGuard {
             listedItem.price
           );
         }
+        Buyer memory currentBuyer = Buyer(
+          msg.sender,
+          quantity,
+          quantity * listedItem.price
+        );
         s_proceeds[listedItem.seller][listedItem.currency] += msg.value;
+        s_allListings[i].buyers.push(currentBuyer);
         emit ItemBought(msg.sender, productCode, listedItem.price);
         break;
       }
@@ -222,7 +237,8 @@ contract MetaverseMarketplace is ReentrancyGuard {
           productInfo,
           s_allListings[i].productCode,
           s_allListings[i].nftTokenId,
-          s_allListings[i].comments
+          s_allListings[i].comments,
+          s_allListings[i].buyers
         );
         s_allListings[i] = listingTemp;
         emit ListingUpdated(msg.sender, productCode, title, price);
