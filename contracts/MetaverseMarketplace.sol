@@ -6,17 +6,12 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 error MetaverseMarketplace__PriceMustBeAboveZero();
-error MetaverseMarketplace__NotApprovedForMarketplace();
 error MetaverseMarketplace__PriceNotMet(
     string productCode,
     address seller,
     uint256 price
 );
 error MetaverseMarketplace__NoProceeds();
-error MetaverseMarketplace__AlreadyListed(address nftAddress, uint256 tokenId);
-error MetaverseMarketplace__NotListed(address nftAddress, uint256 tokenId);
-error MetaverseMarketplace__TheOwner();
-error MetaverseMarketplace__NotOwner();
 error MetaverseMarketplace__AddressLessThan1DayForMetaverseToken(address senderAddress);
 
 contract MetaverseMarketplace is ReentrancyGuard {
@@ -25,6 +20,7 @@ contract MetaverseMarketplace is ReentrancyGuard {
     uint256 rating;
     string comment;
     uint time;
+    string dateString;
   }
 
   struct Listing {
@@ -38,21 +34,17 @@ contract MetaverseMarketplace is ReentrancyGuard {
     string currency;
     string productUrl;
     string productInfo;
+    string productCode;
     uint256 nftTokenId;
     Comment[] comments;
   }
 
-  struct Proceed {
-    uint256 ethereum;
-    uint256 lisk;
-    uint256 metaverse;
-  }
-
-  mapping(address => mapping(string => Listing)) private s_listings;
   mapping(address => mapping(string => uint256)) private s_proceeds;
   mapping(address => string) private usernames;
   mapping(address => uint256) public addressToLastGetMetaverseToken;
   IERC20 public metaverseToken;
+
+  Listing[] private s_allListings;
 
   event ItemListed(
     address indexed seller,
@@ -67,17 +59,39 @@ contract MetaverseMarketplace is ReentrancyGuard {
     bool indexed publish
   );
 
-  event ItemCanceled(
-    address indexed seller,
-    address indexed nftAddress,
-    uint256 indexed tokenId,
-    uint256 price
-  );
-
   event ItemBought(
     address indexed buyer,
     string indexed productCode,
     uint256 indexed price
+  );
+
+  event CommentAdded(
+    address indexed commenter,
+    string indexed comment,
+    string indexed productCode,
+    address seller
+  );
+
+  event SetUsername(
+    address indexed owner,
+    string indexed username
+  );
+
+  event MetaverseAirdrop(
+    address indexed person
+  );
+
+  event ProceedsWithdrawn(
+    address indexed person,
+    string indexed currency,
+    uint256 indexed amount
+  );
+
+  event ListingUpdated(
+    address indexed seller,
+    string indexed productCode,
+    string indexed title,
+    uint256 price
   );
 
   constructor(address _metaverseTokenAddress) {
@@ -102,7 +116,7 @@ contract MetaverseMarketplace is ReentrancyGuard {
       revert MetaverseMarketplace__PriceMustBeAboveZero();
     }
     Comment[] memory comments;
-    s_listings[msg.sender][productCode] = Listing(
+    Listing memory newListing = Listing(
       price,
       msg.sender,
       false,
@@ -113,9 +127,11 @@ contract MetaverseMarketplace is ReentrancyGuard {
       currency,
       productUrl,
       productInfo,
+      productCode,
       nftTokenId,
       comments
     );
+    s_allListings.push(newListing);
     emit ItemListed(
       msg.sender,
       price,
@@ -124,9 +140,18 @@ contract MetaverseMarketplace is ReentrancyGuard {
     );
   }
 
+  function compareStrings(string memory a, string memory b) internal pure returns (bool) {
+    return keccak256(abi.encodePacked(a)) == keccak256(abi.encodePacked(b));
+  }
+
   function changeListingVisibility(string memory productCode, bool publish) public {
-    s_listings[msg.sender][productCode].published = publish;
-    emit ItemPublished(msg.sender, productCode, publish);
+    for (uint256 i = 0; i < s_allListings.length; i++) {
+      if (compareStrings(s_allListings[i].productCode, productCode)) {
+        s_allListings[i].published = publish;
+        emit ItemPublished(msg.sender, productCode, publish);
+        break;
+      }
+    }
   }
 
   function buyItem(string memory productCode, address seller)
@@ -134,16 +159,67 @@ contract MetaverseMarketplace is ReentrancyGuard {
     payable
     nonReentrant
   {
-    Listing memory listedItem = s_listings[seller][productCode];
-    if (msg.value < listedItem.price) {
-      revert MetaverseMarketplace__PriceNotMet(
-        productCode,
-        seller,
-        listedItem.price
-      );
+    for (uint256 i = 0; i < s_allListings.length; i++) {
+      if (compareStrings(s_allListings[i].productCode, productCode)) {
+        Listing memory listedItem = s_allListings[i];
+        if (msg.value < listedItem.price) {
+          revert MetaverseMarketplace__PriceNotMet(
+            productCode,
+            seller,
+            listedItem.price
+          );
+        }
+        s_proceeds[listedItem.seller][listedItem.currency] += msg.value;
+        emit ItemBought(msg.sender, productCode, listedItem.price);
+        break;
+      }
     }
-    s_proceeds[listedItem.seller][listedItem.currency] += msg.value;
-    emit ItemBought(msg.sender, productCode, listedItem.price);
+  }
+
+  function addComment(
+    string memory comment, 
+    uint256 rating, 
+    string memory dateString, 
+    string memory productCode, 
+    address seller
+  ) public {
+    for (uint i = 0; i < s_allListings.length; i++) {
+      if (compareStrings(s_allListings[i].productCode, productCode)) {
+        Comment memory newComment = Comment(
+          msg.sender,
+          rating,
+          comment,
+          block.timestamp,
+          dateString
+        );
+        s_allListings[i].comments.push(newComment);
+        emit CommentAdded(msg.sender, comment, productCode, seller);
+        break;
+      }
+    }
+  }
+
+  function updateListing(
+    string memory productCode, 
+    uint256 price, 
+    string memory title, 
+    string memory description, 
+    string memory productInfo, 
+    string memory productUrl, 
+    string memory imageUrl
+  ) public {
+    for (uint i = 0; i < s_allListings.length; i++) {
+      if (compareStrings(s_allListings[i].productCode, productCode)) {
+        s_allListings[i].price = price;
+        s_allListings[i].title = title;
+        s_allListings[i].description = description;
+        s_allListings[i].productInfo = productInfo;
+        s_allListings[i].productUrl = productUrl;
+        s_allListings[i].imageUrl = imageUrl;
+        emit ListingUpdated(msg.sender, productCode, title, price);
+        break;
+      }
+    }
   }
 
   function withdrawProceeds(string memory currency) external {
@@ -153,15 +229,38 @@ contract MetaverseMarketplace is ReentrancyGuard {
     }
     s_proceeds[msg.sender][currency] = 0;
     (bool success, ) = payable(msg.sender).call{value: proceeds}("");
+    if (success) {
+      emit ProceedsWithdrawn(msg.sender, currency, proceeds);
+    }
     require(success, "Transfer failed!");
   }
 
-  function getListing(string memory productCode)
+  function getUserListing()
     external
     view
-    returns (Listing memory)
+    returns (Listing[] memory)
   {
-    return s_listings[msg.sender][productCode];
+    Listing[] memory currentListing = new Listing[](s_allListings.length);
+    for (uint256 i = 0; i < s_allListings.length; i++) {
+      if (s_allListings[i].seller == msg.sender) {
+        currentListing[i] = s_allListings[i];
+      }
+    }
+    return currentListing;
+  }
+
+  function getListingByProductType(string memory productType)
+    external
+    view
+    returns (Listing[] memory)
+  {
+    Listing[] memory currentListing = new Listing[](s_allListings.length);
+    for (uint256 i = 0; i < s_allListings.length; i++) {
+      if (compareStrings(s_allListings[i].productType, productType)) {
+        currentListing[i] = s_allListings[i];
+      }
+    }
+    return currentListing;
   }
 
   function getProceeds(address seller, string memory currency) external view returns (uint256) {
@@ -174,5 +273,15 @@ contract MetaverseMarketplace is ReentrancyGuard {
     }
     addressToLastGetMetaverseToken[msg.sender] = block.timestamp;
     metaverseToken.transfer(msg.sender, 1000 ether);
+    emit MetaverseAirdrop(msg.sender);
+  }
+
+  function setUsername(string memory newUsername) public {
+    usernames[msg.sender] = newUsername;
+    emit SetUsername(msg.sender, newUsername);
+  }
+
+  function getAllUserListings() public view returns (Listing[] memory) {
+    return s_allListings;
   }
 }

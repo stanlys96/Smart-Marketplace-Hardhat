@@ -6,18 +6,14 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 
 contract MetaverseNFT is ERC721URIStorage {
   uint256 private _currentTokenId;
-  address contractAddress;
 
-  constructor(address marketplaceAddress) ERC721("Metaverse NFT", "MFT") {
-    contractAddress = marketplaceAddress;
-  }
+  constructor() ERC721("Metaverse NFT", "MFT") {}
 
-  function createToken(string memory tokenURI) public returns (uint) {
+  function mintNFT(string memory tokenURI) public returns (uint) {
     _currentTokenId++;
 
     _mint(msg.sender, _currentTokenId);
-    _setTokenURI(_currentTokenId, tokenURI);
-    setApprovalForAll(contractAddress, true);
+    _setTokenURI(_currentTokenId, tokenURI);  
     return _currentTokenId;
   }
 }
