@@ -46,8 +46,13 @@ contract MetaverseMarketplace is ReentrancyGuard {
     Buyer[] buyers;
   }
 
+  struct UserProfile {
+    string username;
+    string profileImageUrl;
+  }
+
   mapping(address => mapping(string => uint256)) private s_proceeds;
-  mapping(address => string) private usernames;
+  mapping(address => UserProfile) private userProfiles;
   mapping(address => uint256) public addressToLastGetMetaverseToken;
   IERC20 public metaverseToken;
 
@@ -79,9 +84,10 @@ contract MetaverseMarketplace is ReentrancyGuard {
     address seller
   );
 
-  event SetUsername(
+  event SetUserProfile(
     address indexed owner,
-    string indexed username
+    string indexed username,
+    string indexed profileImageUrl
   );
 
   event MetaverseAirdrop(
@@ -301,9 +307,12 @@ contract MetaverseMarketplace is ReentrancyGuard {
     emit MetaverseAirdrop(msg.sender);
   }
 
-  function setUsername(string memory newUsername) public {
-    usernames[msg.sender] = newUsername;
-    emit SetUsername(msg.sender, newUsername);
+  function setUserProfile(string memory newUsername, string memory profileImageUrl) public {
+    userProfiles[msg.sender] = UserProfile(
+      newUsername,
+      profileImageUrl
+    );
+    emit SetUserProfile(msg.sender, newUsername, profileImageUrl);
   }
 
   function getAllUserListings() public view returns (Listing[] memory) {
@@ -319,7 +328,7 @@ contract MetaverseMarketplace is ReentrancyGuard {
     return false;
   }
 
-  function getUsername() public view returns (string memory) {
-    return usernames[msg.sender];
+  function getUserProfile() external view returns (UserProfile memory) {
+    return userProfiles[msg.sender];
   }
 }
