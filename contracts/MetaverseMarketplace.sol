@@ -318,4 +318,8 @@ contract MetaverseMarketplace is ReentrancyGuard {
     }
     return false;
   }
+
+  function getUsername() public view returns (string memory) {
+    return usernames[msg.sender];
+  }
 }
