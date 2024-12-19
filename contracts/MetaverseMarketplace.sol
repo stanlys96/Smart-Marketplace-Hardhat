@@ -54,6 +54,7 @@ contract MetaverseMarketplace is ReentrancyGuard {
   mapping(address => mapping(string => uint256)) private s_proceeds;
   mapping(address => UserProfile) private userProfiles;
   mapping(address => uint256) public addressToLastGetMetaverseToken;
+  mapping(string => mapping(address => bool)) public productCodeCommentToAddress;
   IERC20 public metaverseToken;
 
   Listing[] private s_allListings;
@@ -162,6 +163,7 @@ contract MetaverseMarketplace is ReentrancyGuard {
   function changeListingVisibility(string memory productCode, bool publish) public {
     for (uint256 i = 0; i < s_allListings.length; i++) {
       if (compareStrings(s_allListings[i].productCode, productCode)) {
+        require(s_allListings[i].seller == msg.sender, "Not your own product!");
         s_allListings[i].published = publish;
         emit ItemPublished(msg.sender, productCode, publish);
         break;
@@ -177,6 +179,7 @@ contract MetaverseMarketplace is ReentrancyGuard {
     for (uint256 i = 0; i < s_allListings.length; i++) {
       if (compareStrings(s_allListings[i].productCode, productCode)) {
         Listing memory listedItem = s_allListings[i];
+        require(listedItem.seller != msg.sender, "Can not buy your own product!");
         if (msg.value < listedItem.price) {
           revert MetaverseMarketplace__PriceNotMet(
             productCode,
@@ -189,6 +192,9 @@ contract MetaverseMarketplace is ReentrancyGuard {
           quantity,
           quantity * listedItem.price
         );
+        if (compareStrings(listedItem.currency, "METT")) {
+          metaverseToken.transferFrom(msg.sender, address(this), msg.value);
+        }
         s_proceeds[listedItem.seller][listedItem.currency] += msg.value;
         s_allListings[i].buyers.push(currentBuyer);
         emit ItemBought(msg.sender, productCode, listedItem.price);
@@ -206,6 +212,9 @@ contract MetaverseMarketplace is ReentrancyGuard {
   ) public {
     for (uint i = 0; i < s_allListings.length; i++) {
       if (compareStrings(s_allListings[i].productCode, productCode)) {
+        require(s_allListings[i].seller != msg.sender, "Can not comment on your own products!");
+        require(productCodeCommentToAddress[s_allListings[i].productCode][msg.sender] == false, "Can not comment more than once!");
+        productCodeCommentToAddress[s_allListings[i].productCode][msg.sender] = true;
         s_allListings[i].comments.push(Comment(
           msg.sender,
           rating,
@@ -230,6 +239,7 @@ contract MetaverseMarketplace is ReentrancyGuard {
   ) public {
     for (uint i = 0; i < s_allListings.length; i++) {
       if (compareStrings(s_allListings[i].productCode, productCode)) {
+        require(s_allListings[i].seller == msg.sender, "Can not edit another person's product!");
         Listing memory listingTemp = Listing(
           price,
           s_allListings[i].seller,
@@ -259,11 +269,15 @@ contract MetaverseMarketplace is ReentrancyGuard {
       revert MetaverseMarketplace__NoProceeds();
     }
     s_proceeds[msg.sender][currency] = 0;
-    (bool success, ) = payable(msg.sender).call{value: proceeds}("");
-    if (success) {
-      emit ProceedsWithdrawn(msg.sender, currency, proceeds);
+    if (compareStrings(currency, "ETH")) {
+      (bool success, ) = payable(msg.sender).call{value: proceeds}("");
+      if (success) {
+        emit ProceedsWithdrawn(msg.sender, currency, proceeds);
+      }
+      require(success, "Transfer failed!");  
+    } else if (compareStrings(currency, "METT")) {
+      metaverseToken.transfer(msg.sender, proceeds);
     }
-    require(success, "Transfer failed!");
   }
 
   function getUserListing()
@@ -292,6 +306,17 @@ contract MetaverseMarketplace is ReentrancyGuard {
       }
     }
     return currentListing;
+  }
+
+  function getListingByProductCode(string memory productCode) external view returns (Listing memory) {
+    for (uint256 i = 0; i < s_allListings.length; i++) {
+      if (compareStrings(s_allListings[i].productCode, productCode)) {
+        return s_allListings[i];
+      }
+    }
+    Comment[] memory comments;
+    Buyer[] memory buyers;
+    return Listing(0, address(0), false, "", "", "", "", "", "", "", "", 0, comments, buyers);
   }
 
   function getProceeds(address seller, string memory currency) external view returns (uint256) {
@@ -328,7 +353,7 @@ contract MetaverseMarketplace is ReentrancyGuard {
     return false;
   }
 
-  function getUserProfile() external view returns (UserProfile memory) {
-    return userProfiles[msg.sender];
+  function getUserProfile(address profileOwner) external view returns (UserProfile memory) {
+    return userProfiles[profileOwner];
   }
 }
