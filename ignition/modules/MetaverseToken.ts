@@ -1,6 +1,7 @@
 import { ethers } from "ethers";
 const { buildModule } = require("@nomicfoundation/hardhat-ignition/modules");
 
+// Token
 const TokenModule = buildModule("MetaverseToken", (m: any) => {
   const token = m.contract("Metaverse", [
     "Metaverse",
